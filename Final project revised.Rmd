@@ -1,0 +1,187 @@
+---
+title: "Final Project: Mortality of COVID-19"
+author: "Yufeng Zhu"
+date: "12/15/2021"
+output:
+  bookdown::html_document2:
+    toc: yes
+    toc_float: yes
+    number_sections: yes
+    fig_caption: yes
+    fig_width: 8
+    fig_height: 6
+    theme: cerulean
+    
+  html_document:
+    df_print: paged
+    toc: true
+    number_sections: true
+    toc_depth: '3'
+    code_folding: show
+    
+
+---
+
+```{r setup, include=FALSE, message=FALSE, warning=FALSE}
+library(reshape)
+knitr::opts_chunk$set(message = FALSE, warning=FALSE)
+```
+
+# Introduction
+
+Coronavirus disease 2019 (COVID-19) is an infectious illness caused by the SARS-CoV-2and can lead to severe acute respiratory syndrome. In December of 2019, the first case was discovered in Wuhan, China. Since then, the disease has spread globally, resulting in a pandemic that is still underway.
+
+- COVID-19 is spread by inhaling contaminated air by viral droplets and tiny airborne particles. Individuals can inhale these droplets and particles, which can also settle on their eyes, noses, or mouths. People who are within 6 feet of an infected person are most likely to get the disease.
+
+- Some common symptoms of COVID-19 are fever, cough, headache, breathing problems, and loss of smell and taste. After being exposed to the virus, symptoms might appear from one to fourteen days later.
+
+- Several COVID-19 vaccines have been licensed and are being delivered in a number of countries that have begun mass immunization efforts. Physical or social separation, quarantining, indoor ventilation, covering coughs and sneezes, hand washing also help.
+
+## About the CDC Data
+
+Provisional COVID-19 Deaths by Sex and Age
+
+- In this dataset ,coronavirus disease 2019 (COVID-19) deaths were reported to NCHS by sex, age group, and incidence jurisdiction.
+
+- Also note that the number of fatalities presented in this table represents the total number of deaths received and coded as of the analysis date, not all deaths that occurred during that time period. And due to the time lag between when a death occurs and when the death certificate is prepared, submitted to NCHS, and processed for reporting purposes, there is a delay between one to eight weeks or more. 
+
+# Data Cleaning and Wrangling 
+
+I first imported the dataset using read_csv. Then I cleaned the COVID-19 raw data using clean_names. I also removed the two redundant columns "year" and "month" and create a new separate column called time in later section. Overall, it is a very big data set with 10 columns and 71,604 rows.
+
+```{r}
+library(tidyverse)
+library(readxl)
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+library (janitor)
+library(zoo)
+library(gganimate)
+library(data.table)
+library(formattable)
+
+Death_2021 <- read_csv("data-0XGPW.csv") %>% clean_names()
+Covid_data_raw <- read_csv("Provisional_COVID-19_Deaths_by_Sex_and_Age.csv") %>% clean_names()
+Covid_data_raw
+Covid_data <- Covid_data_raw %>% select(start_date, end_date, state, sex, age_group, covid_19_deaths, total_deaths)
+Covid_data 
+```
+
+# Data Analysis and Discussions
+
+## Mortality of COVID-19 Overall 
+```{r}
+p <- Death_2021 %>% mutate(disease = fct_reorder(disease, desc(daily_death_average))) %>%
+  ggplot( aes(x=disease, y=daily_death_average)) +
+    geom_bar(stat="identity", fill="#f68060", alpha=.6, width=.4) +
+    coord_flip() + ylab("Daily Deaths Average") +theme_light() + ggtitle("Average daily deaths in the United States in 2021") + theme(plot.title = element_text(hjust =0.5)) + transition_states(disease) +
+  shadow_mark() + enter_grow() + enter_fade()
+animate(p, end_pause = 50)
+```
+
+Looking at the most recent data available on  the average daily deaths in United States from COVID-19 and other causes, COVID-19 is the number 3 leading cause of death in the U.S. in 2021.
+
+```{r}
+Covid_data_Overall <- Covid_data %>% filter(sex=="All Sexes") %>%
+  filter(state == "United States") %>% filter(age_group=="All Ages") %>% tail(23)  %>% mutate(time = as.yearmon(start_date, "%m/%d/%Y")) %>% select(start_date, end_date, time, covid_19_deaths)
+formattable(Covid_data_Overall, align =c("l","c", "c", "r"))
+p0 <- ggplot(Covid_data_Overall, aes(x=time, y=covid_19_deaths)) + geom_point() + geom_line(aes(group=1)) +theme_light() + xlab("Time (month year)") + ylab("Covid-19 Deaths")  + ggtitle("Mortality of Covid-19 in USA from 2020 to 2021") + theme(plot.title = element_text(hjust =0.5)) + transition_reveal(as.numeric(time))
+p0
+animate(p0, end_pause = 50)
+```
+
+- The number of daily deaths from COVID-19 in the United States had a spike in April 2020, which is when the quarantine starts. 
+
+- The number of daily deaths from COVID-19 had reached the peak in January 2021 due to the clod weather, then dropped dramatically in January 2021 due to the vaccination.
+
+- The number of daily deaths from COVID-19 began to rise again in August 2021, when the Delta variant spread. COVID-19 killed an average of 1,110 people every day in November 2021. 
+
+- In comparison, heart disease, which is the leading cause of mortality in the United States each year, kills over 2,000 people per day on average, while cancer kills about 1,600 people per day.
+
+## Mortality of COVID-19 by States
+```{r}
+require(ggrepel)
+require(ggspatial)
+require(sf)
+require(rnaturalearth)
+require(rnaturalearthdata)
+library(usmap)
+require(tools)
+ 
+Covid_data_States <- Covid_data %>% filter(sex=="All Sexes") %>% subset(state!="United States") %>% filter(age_group=="All Ages") %>% filter(start_date=="01/01/2020") %>% filter(end_date=="11/27/2021") 
+Covid_data_States
+
+plot_usmap(data=Covid_data_States, values="covid_19_deaths", labels = TRUE, label.size=3) + 
+  scale_fill_continuous(low = "white", high = "red", name = "COVID-19 Deaths") + 
+  theme(panel.background=element_blank(), legend.position = "right") +
+  ggtitle("Mortality of COVID-19 by States")
+```
+
+As of December, 2021, the state with the highest number of COVID-19 cases was California. Around 50 million instances have been recorded across the United States, with California, Texas, and Florida reporting the most. 
+
+- Despite having a typically stricter approach to pandemic management, daily COVID cases in California appear to be higher than those in Texas or Florida.
+
+  - California has had a proactive approach to the pandemic, having been the first state to announce plans for vaccine requirements for school students in October. 
+
+## Mortality of COVID-19 by Sex
+
+```{r}
+Covid_data_Sex <- Covid_data %>% filter(age_group=="All Ages") %>% filter(state == "United States") %>% mutate(time = as.yearmon(start_date, "%m/%d/%Y")) %>% select(start_date, end_date, time, sex, covid_19_deaths) %>% tail(69)
+ 
+Covid_data_Sex
+
+p2 <- Covid_data_Sex %>%
+  ggplot( aes(x=time, y=covid_19_deaths, group=sex, color=sex)) + geom_line() + geom_point()+theme_light() + xlab("Time (month year)") + ylab("Covid-19 Deaths")  + ggtitle("Mortality of Covid-19 in USA from 2020 to 2021 for different sex") + theme(plot.title = element_text(hjust =0.5)) 
+```
+```{r}
+Covid_data_Sex2 = Covid_data_Sex %>% subset(sex!="All Sexes") %>% mutate(pct = prop.table(covid_19_deaths))
+p3 <- Covid_data_Sex2 %>% ggplot(aes(x = time, y = pct, fill(sex), color=sex, label = scales::percent(pct))) +
+ geom_bar(stat='identity')  +theme_light() + xlab("Time (month year)") + ylab("Covid-19 Deaths")  + ggtitle("Mortality of Covid-19 in USA from 2020 to 2021 for different sex") + theme(plot.title = element_text(hjust =0.5))+ 
+  geom_text(aes(label=paste0(sprintf("%1.1f", pct*100),"%")), size=2, position = position_dodge(.1))
+require(gridExtra)
+grid.arrange(p2, p3)
+```
+
+In the United States, men have a greater COVID-19 motality than women, which means men are more likely than women to be hospitalized to the intensive care unit (ICU) and to die in the ICU. 
+
+- According to one meta-analysis, males were more likely than women to get COVID-19 worldwide; there were roughly 55 men and 45 women per 100 infections (CI: 51.43–56.58).
+
+- According to the Chinese Center for Disease Control and Prevention, males died at a rate of 2.8 percent, while women died at a rate of 1.7 percent.
+
+- Why men are more vulnerable to COVID-19 than women?
+  - Genetic: Higher expression of angiotensin-converting enzyme-2
+  - Immunology: Sex-based immunological differences driven by sex hormone and X chromosome,
+  - Gender behavior: higher levels of smoking and drinking
+  - Less responsible attitude toward the pandemic
+
+
+## Mortality of COVID-19 by Age Group 
+```{r}
+target <- c("All Ages","0-17 years", "18-29 years", "30-39 years", "40-49 years", "50-64 years", "65-74 years", "75-84 years", "85 years and over")
+Covid_data_Ages <- Covid_data %>% filter(sex=="All Sexes") %>% filter(state == "United States") %>% mutate(time = as.yearmon(start_date, "%m/%d/%Y")) %>% select(start_date, end_date, time,age_group, covid_19_deaths) %>% tail (391) %>% subset( age_group!="All Ages"& age_group!="1-4 years" & age_group!= "15-24 years"& age_group!= "25-34 years"& age_group!= "35-44 years"& age_group!= "45-54 years"& age_group!= "5-14 years"& age_group!= "55-64 years"& age_group!= "Under 1 year")
+ 
+Covid_data_Ages
+
+p4 <- Covid_data_Ages %>% ggplot( aes(x=time, y=covid_19_deaths, group=age_group, color=age_group)) +  geom_line() + geom_point()+theme_light() + xlab("Time (month year)") + ylab("Covid-19 Deaths")  + ggtitle("Mortality of Covid-19 in USA from 2020 to 2021 for different age groups") + theme(plot.title = element_text(size=12)) + transition_reveal(as.numeric(time))
+p4
+animate(p4, end_pause = 50)
+```
+
+The mortality of COVID-19 in the age group over 50 years old appear to have a dramatic increase compared to the age group less than 50 years old, and 95 percent of Americans killed by COVID-19 were 50 or older.
+
+- Although all age groups are at risk of getting COVID-19, older people face significant risk of developing severe illness  as a result of physiological changes associated with aging and other underlying health issue, which means they might need hospitalization, intensive care, and a ventilator to help them breathe, otherwise they might even die.
+
+- Why old people are more vulnerable to COVID-19 than young people?
+  - Aging immune systems: accumulation of senescent cells that damage neighboring healthy cells and trigger inflammation
+  
+- Older people are more willing to get vaccinated, which is highly effective in preventing their COVID-19–associated hospitalizations.
+
+
+# Conclusions
+
+- The mortality of COVID-19 is higher in the California by state, in males by sex, and in older adults over 50 years old by age group.
+
+- California appears to have highest mortality regardless of its strict policy, which may due to the fact that it has more population proportionally in the older age group.
+
+- The vaccination significantly reduces mortality of COVID-19, which is currently underway to immunize the world's population.
